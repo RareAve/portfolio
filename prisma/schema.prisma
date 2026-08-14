@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// role: "CANDIDATE" | "RECRUITER" (validated in app code via zod — SQLite has no native enum type)
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  passwordHash     String
+  role             String
+  createdAt        DateTime          @default(now())
+  candidateProfile CandidateProfile?
+  recruiterProfile RecruiterProfile?
+  messages         Message[]
+}
+
+model CandidateProfile {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id])
+  publicSlug        String             @unique
+  name              String
+  title             String
+  summary           String
+  location          String
+  skills            String // comma-separated, e.g. "React,Node,SQL"
+  resumeUrl         String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  items             PortfolioItem[]
+  experienceEntries ExperienceEntry[]
+  applications      Application[]
+  matches           Match[]
+}
+
+model PortfolioItem {
+  id                 String           @id @default(cuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  title              String
+  description        String
+  imageUrl           String?
+  link               String?
+  tags               String // comma-separated
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+}
+
+// kind: "EDUCATION" | "PROFESSIONAL" | "COMMUNITY"
+model ExperienceEntry {
+  id                 String           @id @default(cuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  kind               String
+  organization       String // "School" for EDUCATION, "Organization" for the rest
+  role               String // "Degree / field of study" for EDUCATION, "Role" for the rest
+  startDate          String // free text, e.g. "2019" or "Sep 2021"
+  endDate            String? // blank/null = present
+  description        String?
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+}
+
+model RecruiterProfile {
+  id          String     @id @default(cuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id])
+  companyName String
+  title       String
+  location    String?
+  bio         String?
+  createdAt   DateTime   @default(now())
+  matches     Match[]
+  jobAlerts   JobAlert[]
+}
+
+// employmentType: "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP"
+model JobAlert {
+  id                 String           @id @default(cuid())
+  recruiterProfileId String
+  recruiterProfile   RecruiterProfile @relation(fields: [recruiterProfileId], references: [id])
+  title              String
+  location           String
+  employmentType     String
+  description        String
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+  applications       Application[]
+  matches            Match[]
+}
+
+// recruiterResponse: "PENDING" | "ACCEPTED" | "REJECTED"
+model Application {
+  id                 String           @id @default(cuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  jobAlertId         String
+  jobAlert           JobAlert         @relation(fields: [jobAlertId], references: [id])
+  applied            Boolean
+  recruiterResponse  String           @default("PENDING")
+  createdAt          DateTime         @default(now())
+  respondedAt        DateTime?
+  match              Match?
+
+  @@unique([candidateProfileId, jobAlertId])
+}
+
+model Match {
+  id                 String           @id @default(cuid())
+  applicationId      String           @unique
+  application        Application      @relation(fields: [applicationId], references: [id])
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  recruiterProfileId String
+  recruiterProfile   RecruiterProfile @relation(fields: [recruiterProfileId], references: [id])
+  jobAlertId         String
+  jobAlert           JobAlert         @relation(fields: [jobAlertId], references: [id])
+  createdAt          DateTime         @default(now())
+  messages           Message[]
+
+  @@unique([candidateProfileId, jobAlertId])
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  matchId      String
+  match        Match    @relation(fields: [matchId], references: [id])
+  senderUserId String
+  sender       User     @relation(fields: [senderUserId], references: [id])
+  body         String
+  createdAt    DateTime @default(now())
+}
